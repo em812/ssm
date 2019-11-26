@@ -27,6 +27,7 @@ def test_sample(T=10, K=4, D=3, M=2):
         "t",
         "diagonal_t",
         "exponential",
+        "censored_exponential",
         "bernoulli",
         "categorical",
         "poisson",

@@ -651,7 +651,7 @@ def exponential_logpdf(data, lambdas, mask=None):
         The points at which to evaluate the log density
 
     lambdas : array_like (..., D)
-        The rates of the Poisson distribution(s)
+        The rates of the exponential distribution(s)
 
     mask : array_like (..., D) bool
         Optional mask indicating which entries in the data are observed
@@ -659,7 +659,7 @@ def exponential_logpdf(data, lambdas, mask=None):
     Returns
     -------
     lps : array_like (...,)
-        Log probabilities under the Poisson distribution(s).
+        Log probabilities under the exponential distribution(s).
     """
     D = data.shape[-1]
     assert lambdas.shape[-1] == D
@@ -670,4 +670,38 @@ def exponential_logpdf(data, lambdas, mask=None):
 
     # Compute log pdf
     lls = np.log(lambdas) - lambdas * data
+    return np.sum(lls * mask, axis=-1)
+
+def exponential_logccdf(data, lambdas, mask=None):
+    """
+    Compute the log complementary cumulative function of an exponential distribution,
+    where ccdf(x) = Pr(X>x), X~Exp(lambda).
+    This will broadcast as long as data and lambdas have the same
+    (or at least compatible) leading dimensions.
+
+    Parameters
+    ----------
+    data : array_like (..., D)
+        The points at which to evaluate the log density
+
+    lambdas : array_like (..., D)
+        The rates of the exponential distribution(s)
+
+    mask : array_like (..., D) bool
+        Optional mask indicating which entries in the data are observed
+
+    Returns
+    -------
+    lps : array_like (...,)
+        Log probabilities under the exponential distribution(s).
+    """
+    D = data.shape[-1]
+    assert lambdas.shape[-1] == D
+
+    # Check mask
+    mask = mask if mask is not None else np.ones_like(data, dtype=bool)
+    assert mask.shape == data.shape
+
+    # Compute log pdf
+    lls = - lambdas * data
     return np.sum(lls * mask, axis=-1)

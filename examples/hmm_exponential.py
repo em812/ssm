@@ -10,11 +10,11 @@ from ssm.util import find_permutation
 
 # Set the parameters of the HMM
 T = 500     # number of time bins
-K = 5       # number of discrete states
+K = 2       # number of discrete states
 D = 2       # number of observed dimensions
 
 # Make an HMM with the true parameters
-true_hmm = ssm.HMM(K, D, observations="exponential")
+true_hmm = ssm.HMM(K, D, observations="censored_exponential")
 z, y = true_hmm.sample(T)
 z_test, y_test = true_hmm.sample(T)
 true_ll = true_hmm.log_probability(y)
@@ -26,11 +26,12 @@ N_em_iters = 100
 # A bunch of observation models that all include the
 # diagonal Gaussian as a special case.
 observations = [
-    "exponential"
+    "exponential",
+    "censored_exponential"
 ]
 
 # Fit with both SGD and EM
-methods = ["sgd", "em"]
+methods = ["sgd","em"] #, 
 
 results = {}
 for obs in observations:
@@ -43,6 +44,7 @@ for obs in observations:
 
         # Permute to match the true states
         model.permute(find_permutation(z, model.most_likely_states(y)))
+        
         smoothed_z = model.most_likely_states(y)
         results[(obs, method)] = (model, train_lls, test_ll, smoothed_z, smoothed_y)
 

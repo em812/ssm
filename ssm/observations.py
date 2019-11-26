@@ -158,6 +158,7 @@ class GaussianObservations(Observations):
         """
         return expectations.dot(self.mus)
 
+
 class ExponentialObservations(Observations):
     def __init__(self, K, D, M=0):
         super(ExponentialObservations, self).__init__(K, D, M)
@@ -203,6 +204,35 @@ class ExponentialObservations(Observations):
         of latent discrete states.
         """
         return expectations.dot(1/np.exp(self.log_lambdas))
+
+class CensoredExponentialObservations(ExponentialObservations):
+    def __init__(self, K, D, M=0):
+        super(CensoredExponentialObservations, self).__init__(K, D, M)
+        
+    def log_likelihoods(self, data, input, mask, tag):
+        lambdas = np.exp(self.log_lambdas)
+        mask = np.ones_like(data, dtype=bool) if mask is None else mask
+        if data.shape[0]<=2:
+            return stats.exponential_logccdf(data[:, None, :], lambdas, mask=mask[:, None, :])
+        else:
+            # Initialize the output
+            lls = np.nan * np.ones((data.shape[0],self.K))
+            # Get truncated probabilities
+            lls[1:-1,:] = stats.exponential_logpdf(data[1:-1, None, :], lambdas, mask=mask[1:-1, None, :])
+            lls[[0,-1],:] = stats.exponential_logccdf(data[[0,-1], None, :], lambdas, mask=mask[[0,-1], None, :])
+            return lls
+
+    def m_step(self, expectations, datas, inputs, masks, tags, **kwargs):
+        mask_trunc = [np.zeros(data.shape[0]).astype(bool) for data in datas]
+        for mask in mask_trunc:
+            mask[[0,-1]] = True
+        mask_trunc = np.concatenate(mask_trunc)
+        x = np.concatenate(datas)
+        weights = np.concatenate([Ez for Ez, _, _ in expectations])
+        for k in range(self.K):
+            trunc_weighted_sum = np.multiply(x,weights[:,[k]]).sum(axis=0)/weights[~mask_trunc,k].sum(axis=0)
+            self.log_lambdas[k] = -np.log(trunc_weighted_sum + 1e-16)
+                
 
 class DiagonalGaussianObservations(Observations):
     def __init__(self, K, D, M=0):
