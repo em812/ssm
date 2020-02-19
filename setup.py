@@ -7,6 +7,7 @@ import numpy as np
 
 # Only compile with OpenMP if user asks for it
 USE_OPENMP = os.environ.get('USE_OPENMP', False)
+os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.9'
 print("USE_OPENMP", USE_OPENMP)
 
 # Create the extensions. Manually enumerate the required

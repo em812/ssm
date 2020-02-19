@@ -14,9 +14,15 @@ K = 5       # number of discrete states
 D = 2       # number of observed dimensions
 
 # Make an HMM with the true parameters
-true_hmm = ssm.HMM(K, D, observations="diagonal_gaussian")
-#z, y = true_hmm.sample(T)
-z, y = true_hmm.sample(T)
+true_hmm = ssm.HMM(K, D, observations="censored_exponential")
+z, y = [],[]
+for ts in range(2):
+    iz, iy = true_hmm.sample(T)
+    z.append(iz)
+    y.append(iy)
+iz, iy = true_hmm.sample(1)
+z.append(iz)
+y.append(iy)
 z_test, y_test = true_hmm.sample(T)
 true_ll = true_hmm.log_probability(y)
 
@@ -27,18 +33,11 @@ N_em_iters = 100
 # A bunch of observation models that all include the
 # diagonal Gaussian as a special case.
 observations = [
-    "diagonal_gaussian",
-    "gaussian",
-    "diagonal_t",
-    "studentst",
-    "diagonal_ar",
-    "ar",
-    "diagonal_robust_ar",
-    "robust_ar"
+    "censored_exponential"
 ]
 
 # Fit with both SGD and EM
-methods = ["sgd", "em"]
+methods = ["em"] #"sgd", 
 
 results = {}
 for obs in observations:
@@ -47,47 +46,61 @@ for obs in observations:
         model = ssm.HMM(K, D, observations=obs)
         train_lls = model.fit(y, method=method)
         test_ll = model.log_likelihood(y_test)
-        smoothed_y = model.smooth(y)
+        smoothed_y = []
+        for iy in y:
+            smoothed_y.append(model.smooth(iy))
 
         # Permute to match the true states
-        model.permute(find_permutation(z, model.most_likely_states(y)))
-        smoothed_z = model.most_likely_states(y)
+        mls = []
+        for iy in y:
+            mls.append(model.most_likely_states(iy))
+        mls = np.concatenate(mls)
+        model.permute(find_permutation(np.concatenate(z), mls))
+        
+        smoothed_z = []
+        for iy in y:
+            smoothed_z.append(model.most_likely_states(iy))
+            
         results[(obs, method)] = (model, train_lls, test_ll, smoothed_z, smoothed_y)
 
 # Plot the inferred states
-fig, axs = plt.subplots(len(observations) + 1, 1, figsize=(12, 8))
-
-# Plot the true states
-plt.sca(axs[0])
-plt.imshow(z[None, :], aspect="auto", cmap="jet")
-plt.title("true")
-plt.xticks()
-
-# Plot the inferred states
-for i, obs in enumerate(observations):
-    zs = []
-    for method, ls in zip(methods, ['-', ':']):
-        _, _, _, smoothed_z, _ = results[(obs, method)]
-        zs.append(smoothed_z)
-
-    plt.sca(axs[i+1])
-    plt.imshow(np.row_stack(zs), aspect="auto", cmap="jet")
-    plt.yticks([0, 1], methods)
-    if i != len(observations) - 1:
-        plt.xticks()
-    else:
-        plt.xlabel("time")
-    plt.title(obs)
-
-plt.tight_layout()
+for isample in range(len(z)):
+    fig, axs = plt.subplots(len(observations) + 1, 1, figsize=(12, 8))
+    
+    # Plot the true states
+    plt.sca(axs[0])
+    plt.imshow(z[isample][None, :], aspect="auto", cmap="jet")
+    plt.title("true")
+    plt.xticks()
+    
+    # Plot the inferred states
+    for i, obs in enumerate(observations):
+        zs = []
+        for method, ls in zip(methods, ['-', ':']):
+            _, _, _, smoothed_z, _ = results[(obs, method)]
+            zs.append(smoothed_z[isample])
+    
+        plt.sca(axs[i+1])
+        plt.imshow(np.row_stack(zs), aspect="auto", cmap="jet")
+        plt.yticks([0, 1], methods)
+        if i != len(observations) - 1:
+            plt.xticks()
+        else:
+            plt.xlabel("time")
+        plt.title(obs)
+    
+    plt.tight_layout()
 
 # Plot smoothed observations
 fig, axs = plt.subplots(D, 1, figsize=(12, 8))
 
 # Plot the true data
 for d in range(D):
-    plt.sca(axs[d])
-    plt.plot(y[:, d], '-k', lw=2, label="True")
+    if D==1:
+        plt.sca(axs)
+    else:
+        plt.sca(axs[d])
+    plt.plot(y[0][:, d], '-k', lw=2, label="True")
     plt.xlabel("time")
     plt.ylabel("$y_{{}}$".format(d+1))
 
@@ -96,12 +109,18 @@ for obs in observations:
     for method, ls in zip(methods, ['-', ':']):
         _, _, _, _, smoothed_y = results[(obs, method)]
         for d in range(D):
-            plt.sca(axs[d])
+            if D==1:
+                plt.sca(axs)
+            else:
+                plt.sca(axs[d])
             color = line.get_color() if line is not None else None
-            line = plt.plot(smoothed_y[:, d], ls=ls, lw=1, color=color, label="{}({})".format(obs, method))[0]
+            line = plt.plot(smoothed_y[0][:, d], ls=ls, lw=1, color=color, label="{}({})".format(obs, method))[0]
 
 # Make a legend
-plt.sca(axs[0])
+if D==1:
+    plt.sca(axs)
+else:
+    plt.sca(axs[0])
 plt.legend(loc="upper right")
 plt.tight_layout()
 
@@ -130,3 +149,4 @@ for obs in observations:
         print("{} ({}): {}".format(obs, method, test_ll))
 
 plt.show()
+
